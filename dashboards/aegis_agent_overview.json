@@ -1,0 +1,308 @@
+{
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "Aegis Agent Observability & Cost Centre Audit",
+    "project": "aegis-mcp-control-plane"
+  },
+  "spec": {
+    "display": {
+      "name": "Aegis Agent Observability & Cost Centre Audit",
+      "description": "Production observability for Aegis multi-agent execution, 4-tuple attribution, Monty Rust sandbox metrics, and delegation latency."
+    },
+    "duration": "1h",
+    "refreshInterval": "10s",
+    "variables": [
+      {
+        "kind": "TextVariable",
+        "spec": {
+          "name": "cost_centre",
+          "value": "cc_silicon_eng",
+          "display": {
+            "name": "Cost Centre ID",
+            "description": "Filter telemetry by 4-tuple cost centre attribution"
+          }
+        }
+      },
+      {
+        "kind": "TextVariable",
+        "spec": {
+          "name": "agent_id",
+          "value": "perf_optimizer_01",
+          "display": {
+            "name": "Agent ID",
+            "description": "Filter telemetry by orchestrator agent identifier"
+          }
+        }
+      }
+    ],
+    "layouts": [
+      {
+        "kind": "Grid",
+        "spec": {
+          "display": {
+            "title": "Cost Centre Attribution & Token Spend",
+            "collapse": {
+              "open": true
+            }
+          },
+          "items": [
+            {
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 8,
+              "content": {
+                "$ref": "spec/panels/cost-centre-token-spend"
+              }
+            },
+            {
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 8,
+              "content": {
+                "$ref": "spec/panels/cost-centre-chargeback-table"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "kind": "Grid",
+        "spec": {
+          "display": {
+            "title": "Agent Execution & Latency Breakdown",
+            "collapse": {
+              "open": true
+            }
+          },
+          "items": [
+            {
+              "x": 0,
+              "y": 8,
+              "width": 12,
+              "height": 8,
+              "content": {
+                "$ref": "spec/panels/agent-execution-latency"
+              }
+            },
+            {
+              "x": 12,
+              "y": 8,
+              "width": 12,
+              "height": 8,
+              "content": {
+                "$ref": "spec/panels/agent-step-count-distribution"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "kind": "Grid",
+        "spec": {
+          "display": {
+            "title": "Monty Rust Sandbox & Multi-Agent Delegation",
+            "collapse": {
+              "open": true
+            }
+          },
+          "items": [
+            {
+              "x": 0,
+              "y": 16,
+              "width": 12,
+              "height": 8,
+              "content": {
+                "$ref": "spec/panels/monty-sandbox-execution-stats"
+              }
+            },
+            {
+              "x": 12,
+              "y": 16,
+              "width": 12,
+              "height": 8,
+              "content": {
+                "$ref": "spec/panels/multi-agent-delegation-rate"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "panels": {
+      "cost-centre-token-spend": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Token Spend by Cost Centre",
+            "description": "Total prompt and completion tokens attributed by 4-tuple cost_centre_id"
+          },
+          "plugin": {
+            "kind": "TimeSeriesChart",
+            "spec": {
+              "yAxis": {
+                "unit": "short"
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "LogfireTimeSeriesQuery",
+                  "spec": {
+                    "query": "SELECT time_bucket(interval '1 minute', start_timestamp) AS time, attributes->>'cost_centre_id' AS cost_centre, sum(CAST(attributes->>'total_tokens' AS BIGINT)) AS tokens FROM records WHERE attributes->>'cost_centre_id' IS NOT NULL GROUP BY time, cost_centre ORDER BY time"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "cost-centre-chargeback-table": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Cost Centre Chargeback Summary",
+            "description": "Aggregated chargeback audit table by Actor and Cost Centre"
+          },
+          "plugin": {
+            "kind": "Table",
+            "spec": {}
+          },
+          "queries": [
+            {
+              "kind": "NonTimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "LogfireNonTimeSeriesQuery",
+                  "spec": {
+                    "query": "SELECT attributes->>'cost_centre_id' AS cost_centre_id, attributes->>'actor_id' AS actor_id, count(*) AS total_runs, sum(CAST(coalesce(attributes->>'total_tokens', '0') AS BIGINT)) AS total_tokens, avg(duration) AS avg_duration_sec FROM records WHERE span_name = 'orchestrator.agent_run' GROUP BY cost_centre_id, actor_id ORDER BY total_tokens DESC LIMIT 50"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "agent-execution-latency": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Agent Execution Latency (P50 / P95 / P99)",
+            "description": "Execution latency percentiles across orchestrator agent runs"
+          },
+          "plugin": {
+            "kind": "TimeSeriesChart",
+            "spec": {
+              "yAxis": {
+                "unit": "seconds"
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "LogfireTimeSeriesQuery",
+                  "spec": {
+                    "query": "SELECT time_bucket(interval '1 minute', start_timestamp) AS time, attributes->>'agent_id' AS agent_id, avg(duration) AS avg_latency, max(duration) AS max_latency FROM records WHERE span_name = 'orchestrator.agent_run' GROUP BY time, agent_id ORDER BY time"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "agent-step-count-distribution": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Step Count Breakdown per Agent",
+            "description": "Distribution of steps executed per agent session"
+          },
+          "plugin": {
+            "kind": "BarChart",
+            "spec": {}
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "LogfireTimeSeriesQuery",
+                  "spec": {
+                    "query": "SELECT attributes->>'agent_id' AS agent_id, avg(CAST(attributes->>'step_count' AS DOUBLE)) AS avg_steps, count(*) AS total_sessions FROM records WHERE span_name = 'orchestrator.agent_run' GROUP BY agent_id"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "monty-sandbox-execution-stats": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Monty Rust Sandbox Executions (Success vs Failure)",
+            "description": "Throughput and success/failure distribution of isolated Monty code mode sandbox runs"
+          },
+          "plugin": {
+            "kind": "TimeSeriesChart",
+            "spec": {
+              "yAxis": {
+                "unit": "short"
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "LogfireTimeSeriesQuery",
+                  "spec": {
+                    "query": "SELECT time_bucket(interval '1 minute', start_timestamp) AS time, CASE WHEN is_exception THEN 'failure' ELSE 'success' END AS execution_status, count(*) AS execution_count FROM records WHERE span_name LIKE '%monty%' OR span_name LIKE '%sandbox%' GROUP BY time, execution_status ORDER BY time"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "multi-agent-delegation-rate": {
+        "kind": "Panel",
+        "spec": {
+          "display": {
+            "name": "Multi-Agent Delegation & Handoff Rates",
+            "description": "Rate of supervisor-to-worker sub-agent delegations preserving 4-tuple composite identity"
+          },
+          "plugin": {
+            "kind": "TimeSeriesChart",
+            "spec": {
+              "yAxis": {
+                "unit": "short"
+              }
+            }
+          },
+          "queries": [
+            {
+              "kind": "TimeSeriesQuery",
+              "spec": {
+                "plugin": {
+                  "kind": "LogfireTimeSeriesQuery",
+                  "spec": {
+                    "query": "SELECT time_bucket(interval '1 minute', start_timestamp) AS time, concat(attributes->>'caller_agent_id', ' -> ', attributes->>'target_agent_id') AS delegation_flow, count(*) AS handoffs FROM records WHERE span_name = 'orchestrator.handoff' GROUP BY time, delegation_flow ORDER BY time"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

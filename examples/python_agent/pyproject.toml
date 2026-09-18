@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vortex-silicon-pydantic-agent"
+version = "0.1.0"
+description = "Vortex Silicon AI Agent using Pydantic AI, CodeMode, and Logfire observability over Control Plane Gateway"
+requires-python = ">=3.12"
+authors = [
+    { name = "Vortex Silicon Engineering Team" }
+]
+
+dependencies = [
+    "pydantic-ai>=0.0.30",
+    "pydantic>=2.10.0",
+    "httpx>=0.27.0",
+    "logfire>=2.0.0",
+    "numpy>=2.0.0",
+    "pydantic-ai-harness[code-mode]>=0.25.0",
+]
+
+[project.scripts]
+run-agent = "agent:main"
+
+[tool.uv]
+package = false
+dev-dependencies = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+]

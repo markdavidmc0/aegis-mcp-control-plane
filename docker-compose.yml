@@ -1,0 +1,112 @@
+networks:
+  arm-ai-mesh:
+    driver: bridge
+    name: arm-ai-mesh
+
+services:
+  # ============================================================================
+  # 0. TOOL BUILDER PIPELINE (Ephemeral build profile)
+  # ============================================================================
+  tool-builder:
+    profiles: [ "build" ]
+    build:
+      context: .
+      dockerfile: src/data_plane/Dockerfile
+    container_name: arm-tool-builder
+    volumes:
+      - ./examples/tools:/app/examples/tools
+    command: >
+      python3 /app/examples/tools/build_tools.py --config /app/examples/tools/catalog.json --src-dir /app/examples/tools/src --bin-dir /app/examples/tools/bin
+
+  # ============================================================================
+  # 1. UNIVERSAL DATA PLANE SERVICE (FastMCP / gVisor Execution Sandbox)
+  # ============================================================================
+  data-plane:
+    build:
+      context: .
+      dockerfile: src/data_plane/Dockerfile
+    container_name: arm-data-plane
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    command: uvicorn data_plane.mcp_server:app --host 0.0.0.0 --port 8001
+    volumes:
+      - ./examples/tools:/app/examples/tools:ro
+      - ./workloads:/app/workloads:ro
+    environment:
+      - PORT=8001
+      - HOST=0.0.0.0
+      - ENVIRONMENT=production
+      - LOG_LEVEL=info
+      - PYTHONPATH=/app/src:/app
+      - ARM_TOOLS_DIR=/app/examples/tools
+      - SANDBOX_TIMEOUT_SECONDS=15.0
+      - GVISOR_COW_RESTORE_MS=14.2
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4096M
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+    networks:
+      - arm-ai-mesh
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8001/health || exit 1" ]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  # ============================================================================
+  # 2. CONTROL PLANE SERVICE (Ingress Gateway, Auth & Model Router)
+  # ============================================================================
+  control-plane:
+    build:
+      context: .
+      dockerfile: src/control_plane/Dockerfile
+    container_name: arm-control-plane
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    command: uvicorn control_plane.main:app --host 0.0.0.0 --port 8000
+    volumes:
+      - ./src:/app/src
+      - ./workloads:/app/workloads:ro
+      - ${ADC_PATH:-${HOME}/.config/gcloud/application_default_credentials.json}:/root/.config/gcloud/application_default_credentials.json:ro
+    environment:
+      - PORT=8000
+      - HOST=0.0.0.0
+      - ENVIRONMENT=production
+      - LOG_LEVEL=info
+      - DATA_PLANE_URL=http://data-plane:8001
+      - ENABLE_CODE_MODE=true
+      - PYTHONPATH=/app/src:/app
+      - SANDBOX_TIMEOUT_SECONDS=120.0
+      - GOOGLE_APPLICATION_CREDENTIALS=/root/.config/gcloud/application_default_credentials.json
+      - GOOGLE_CLOUD_PROJECT=${VERTEXAI_PROJECT:-your-gcp-project-id}
+      - VERTEXAI_PROJECT=${VERTEXAI_PROJECT:-}
+      - VERTEXAI_LOCATION=${VERTEXAI_LOCATION:-global}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    depends_on:
+      data-plane:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 2048M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    networks:
+      - arm-ai-mesh
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8000/health || exit 1" ]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+      start_period: 5s

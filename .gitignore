@@ -1,0 +1,49 @@
+# API Key Storage for Local Development
+config/*.json
+!config/*.json.example
+
+# Root-level keys (if created at root)
+keys.json
+!keys.json.example
+
+# Local Python Environment & Caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.venv/
+env/
+venv/
+
+# Terraform/OpenTofu State and Cache Files
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+
+# Agent & Environment Invariants
+AGENTS.md
+EXPLAINER.md
+
+# Operating System & IDE Files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Additional Python & Tool Caches ---
+.ruff_cache/
+.logfire
+.uv/
+
+# --- Test Coverage & Build Artifacts ---
+.coverage
+htmlcov/
+coverage.xml
+*.egg-info/
+
+# Agent & Environment Invariants
+AGENTS.md

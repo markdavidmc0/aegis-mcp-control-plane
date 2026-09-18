@@ -1,0 +1,73 @@
+{
+  "tools": [
+    {
+      "name": "profile_tensor_kernel",
+      "description": "Benchmarks real GEMM execution latency, achieved GFLOPS, memory footprint, and arithmetic intensity across matrix dimensions and data types.",
+      "entrypoint": "src/profile_tensor_kernel.py",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "matrix_dim": {
+            "type": "integer",
+            "description": "Square matrix dimension N for N x N matrix multiplication."
+          },
+          "data_type": {
+            "type": "string",
+            "enum": [
+              "float32",
+              "float16",
+              "float64",
+              "int8"
+            ],
+            "default": "float32"
+          },
+          "iterations": {
+            "type": "integer",
+            "default": 5
+          }
+        },
+        "required": [
+          "matrix_dim"
+        ]
+      }
+    },
+    {
+      "name": "get_accelerator_specs",
+      "description": "Retrieves hardware specification limits (peak TFLOPS, memory bandwidth in GB/s, and ridge point) for target Vortex AI accelerator architectures.",
+      "entrypoint": "src/get_accelerator_specs.py",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "architecture": {
+            "type": "string",
+            "default": "vortex-npu-v2",
+            "description": "Name of the target ASIC architecture."
+          }
+        },
+        "required": [
+          "architecture"
+        ]
+      }
+    },
+    {
+      "name": "e2e_vector_dot",
+      "description": "Calculates SME2 vector dot product.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "len": {
+            "type": "integer"
+          }
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "len": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  ]
+}
